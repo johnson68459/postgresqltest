@@ -1,65 +1,155 @@
 _schema-version: 3.3.0
 ID: Postgresql
+description: A simple CAP project.
 version: 1.0.0
-description: "A simple CAP project."
+modules:
+- name: Postgresql-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: postgresqlinstance
+  - name: Postgresql-auth
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    readiness-health-check-http-endpoint: /health
+    readiness-health-check-type: http
+  build-parameters:
+    builder: npm
+- name: postgresqlinstance-deployer
+  type: nodejs
+  path: gen/pg
+  requires:
+  - name: postgresqlinstance
+  - name: Postgresql-auth
+  provides:
+  - name: srv2-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    disk-quota: 1GB
+    memory: 256MB
+    no-route: true
+    no-start: true
+    tasks:
+    - command: npm start
+      disk-quota: 1GB
+      memory: 256MB
+      name: deploy-to-postgresql
+  build-parameters:
+    ignore:
+    - node_modules/
+- name: Postgresql-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: Postgresql-destination-service
+    parameters:
+      content-target: true
+  - name: Postgresql_html_repo_host
+    parameters:
+      service-key:
+        name: Postgresql_html_repo_host-key
+  - name: Postgresql-auth
+    parameters:
+      service-key:
+        name: Postgresql-auth-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: approuterpostgre_Postgresql_html_repo_host
+          ServiceInstanceName: Postgresql-html5-app-host-service
+          ServiceKeyName: Postgresql_html_repo_host-key
+          sap.cloud.service: approuterpostgre
+        - Authentication: OAuth2UserTokenExchange
+          Name: approuterpostgre_Postgresql_auth
+          ServiceInstanceName: Postgresql-auth
+          ServiceKeyName: Postgresql-auth-key
+          sap.cloud.service: approuterpostgre
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+- name: Postgresql-app-content
+  type: com.sap.application.content
+  path: .
+  requires:
+  - name: Postgresql_html_repo_host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: resources
+    requires:
+    - artifacts:
+      - trialposgre.zip
+      name: trialposgre
+      target-path: resources/
+- name: trialposgre
+  type: html5
+  path: app/trialposgre
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: postgresqlinstance
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: postgresql-db
+    service-plan: trial
+- name: Postgresql-auth
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      tenant-mode: dedicated
+      xsappname: Postgresql-${org}-${space}
+    path: ./xs-security.json
+    service: xsuaa
+    service-plan: application
+- name: Postgresql-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      init_data:
+        instance:
+          destinations:
+          - Authentication: NoAuthentication
+            Name: ui5
+            ProxyType: Internet
+            Type: HTTP
+            URL: https://ui5.sap.com
+          - Authentication: NoAuthentication
+            HTML5.DynamicDestination: true
+            HTML5.ForwardAuthToken: true
+            Name: Postgresql-srv-api
+            ProxyType: Internet
+            Type: HTTP
+            URL: ~{srv-api/srv-url}
+          existing_destinations_policy: update
+      version: 1.0.0
+    service: destination
+    service-name: Postgresql-destination-service
+    service-plan: lite
+  requires:
+  - name: srv-api
+- name: Postgresql_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: Postgresql-html5-app-host-service
+    service-plan: app-host
 parameters:
+  deploy_mode: html5-repo
   enable-parallel-deployments: true
 build-parameters:
   before-all:
-    - builder: custom
-      commands:
-        - npx cds build --production
-        # - bash ./pg-build.sh
-modules:
-  - name: Postgresql-srv
-    type: nodejs
-    path: gen/srv
-    parameters:
-      buildpack: nodejs_buildpack
-      readiness-health-check-type: http
-      readiness-health-check-http-endpoint: /health
-    build-parameters:
-      builder: npm
-    provides:
-      - name: srv-api # required by consumers of CAP services (e.g. approuter)
-        properties:
-          srv-url: ${default-url}
-    requires:
-      - name: postgresqlinstance
-      - name: Postgresql-auth
-
-  - name: postgresqlinstance-deployer
-    type: nodejs
-    path: gen/pg
-    parameters:
-      buildpack: nodejs_buildpack
-      no-route: true
-      no-start: true
-      disk-quota: 1GB
-      memory: 256MB
-      tasks:
-        - name: deploy-to-postgresql
-          command: npm start
-          disk-quota: 1GB
-          memory: 256MB
-    build-parameters:
-      ignore:
-        - "node_modules/"
-    requires:
-      - name: postgresqlinstance
-
-resources:
-  - name: postgresqlinstance
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: postgresql-db
-      service-plan: trial
-  - name: Postgresql-auth
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: xsuaa
-      service-plan: application
-      path: ./xs-security.json
-      config:
-        xsappname: Postgresql-${org}-${space}
-        tenant-mode: dedicated
+  - builder: custom
+    commands:
+    - npx cds build --production
