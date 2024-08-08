@@ -1,15 +1,15 @@
 {
-    "requires": {
-      "db": {
-        "kind": "postgres",
-        "impl": "@cap-js/postgres",
-        "credentials": {
-          "host": "postgres-1ff9672e-7a97-43c8-a0f8-6df74cdfa22a.cqryblsdrbcs.us-east-1.rds.amazonaws.com",
-          "port": 1919,
-          "user": "957c9bcf1e46",
-          "password": "dd051402e288be322",
-          "database": "rIxZCyLRxLZr"
-        }
+  "requires": {
+    "db": {
+      "kind": "postgres",
+      "impl": "@cap-js/postgres",
+      "credentials": {
+        "host": "localhost",
+        "port": 8001,
+        "user": "postgres",
+        "password": "postgres",
+        "database": "Bookshop"
       }
     }
   }
+}
